@@ -15,9 +15,12 @@ This repository provides source codes for two applications:
 - source ENV/bin/activate 
 - pip3 install -r requirements.txt
 
+# Quick start
+- python3 run_load_json.py
+- python3 run_seg_preprocessing.py
+- python3 run_segmentation.py 
 
 ## Preprocessing
-
 Input: 2 input directories (TEKLIA JSON format) 
       
       - Manual annotations (*.json) located in "data/horae-json-export/manual_annotations/volumes_name.json" 
@@ -42,8 +45,4 @@ Output: 2 main output directories:
              "../data/segmentation/test/choiformat/flat/"
              "../data/segmentation/test/txt/"
           
-## Segmentation          
-2) Books of hours segmentation
-   1) Preprocesing:
-   
 
