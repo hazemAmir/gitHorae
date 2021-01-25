@@ -21,7 +21,7 @@ This repository provides source codes for two applications:
 - python3 run_segmentation.py 
 
 ## Preprocessing
-   1) python3 run_load_json.py
+   1) ### Load and parse JSON volumes (python3 run_load_json.py)
        
        Input: 2 input directories (TEKLIA JSON format) 
       
@@ -30,16 +30,15 @@ This repository provides source codes for two applications:
   
        Output:  1 output directory:
        
-       - alignment directory (contains raw files that will be used to detect and extract liturgical texts such as psalms and other liturgical pieces...)
-         
-              - location: ../data/alignment/raw/ conctains multicolumn csv files
-              - raw files columns contain: transcription '\t' image_id '\t' element_id '\t' element_polygon
+              - Alignment directory (contains raw files used to detect and extract liturgical texts such as psalms, etc.)
+                       --> location: ../data/alignment/raw/ conctains multicolumn csv files
+                       --> raw files columns format: transcription '\t' image_id '\t' element_id '\t' element_polygon
               - 1 log file that contains information about the aligned volumes and the number of aligned sections
-                Location: ../data/alignment/alignment.log
+                       --> Location: ../data/alignment/alignment.log
               
-   2) python3 run_seg_preprocessing.py   
+   2) ### Prepare data files for segmentation (python3 run_seg_preprocessing.py)   
       
-      Input: 2 input directories: Choose train and test files from "../data/alignment/raw/" and copy them into the folowing directories:  
+      Input: 2 input directories: choose train and test files from "../data/alignment/raw/" and copy them into the following directories:  
               
               - Train directory: ../data/segmentation/train/raw/
               - Test directory:  ../data/segmentation/test/raw/
@@ -57,5 +56,5 @@ This repository provides source codes for two applications:
                            "../data/segmentation/test/txt/"
 ## Segmentation
  1) python3 run_segmentation.py
-    performs training with svm and produces segmentaton results for all the volums containe in the ../data/segmentation/test/raw/ directory
+    performs training with svm and produces segmentaton results for all the volums contained in the ../data/segmentation/test/raw/ directory
 
