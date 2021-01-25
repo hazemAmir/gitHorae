@@ -31,24 +31,31 @@ This repository provides source codes for two applications:
        Output:  1 output directory:
        
        - alignment directory (contains raw files that will be used to detect and extract liturgical texts such as psalms and other liturgical pieces...)
-         --> location: ../data/alignment/raw/ conctains multicolumn csv files
-         --> raw files columns contain: transcription '\t' image_id '\t' element_id '\t' element_polygon
-                     
+         
+              - location: ../data/alignment/raw/ conctains multicolumn csv files
+              - raw files columns contain: transcription '\t' image_id '\t' element_id '\t' element_polygon
+              - 1 log file that contains information about the aligned volumes and the number of aligned sections
+                Location: ../data/alignment/alignment.log
+              
    2) python3 run_seg_preprocessing.py   
       
-      Input: 2 input directories: Choose train and test files from "../data/alignment/raw/" and copy them into the floowing directories  
-              - Train directory: ../data/segmentation/train/raw/
-              - Test directory ../data/segmentation/test/raw/
+      Input: 2 input directories: Choose train and test files from "../data/alignment/raw/" and copy them into the folowing directories:  
               
-      - segmentation directoy (contains several files format dedicated to train and test the lines classification and segmentation)
-         --> location: ../data/segmentation/
-                     
-             "../data/segmentation/train/csv/hier/"
-             "../data/segmentation/train/csv/flat/"
-             "../data/segmentation/test/csv/hier/"
-             "../data/segmentation/test/csv/flat/"
-             "../data/segmentation/test/choiformat/hier/"
-             "../data/segmentation/test/choiformat/flat/"
-             "../data/segmentation/test/txt/"
-          
+              - Train directory: ../data/segmentation/train/raw/
+              - Test directory:  ../data/segmentation/test/raw/
+      
+      Output: 7 output directories (contain several files format dedicated to train and test line classification and segmentation)
+         
+             --> location: ../data/segmentation/....
+                           "../data/segmentation/train/csv/hier/"
+                           "../data/segmentation/train/csv/flat/"
+                           
+                           "../data/segmentation/test/csv/hier/"
+                           "../data/segmentation/test/csv/flat/"
+                           "../data/segmentation/test/choiformat/hier/"
+                           "../data/segmentation/test/choiformat/flat/"
+                           "../data/segmentation/test/txt/"
+## Segmentation
+ 1) python3 run_segmentation.py
+    performs training with svm and produces segmentaton results for all the volums containe in the ../data/segmentation/test/raw/ directory
 
