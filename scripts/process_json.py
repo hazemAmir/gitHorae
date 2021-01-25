@@ -10,8 +10,6 @@
 from __future__ import division
 import codecs
 import argparse
-import horae_alignement as hoho
-import horae_text_alignement as ho
 from os import listdir
 from os.path import isfile, join
 import sys
