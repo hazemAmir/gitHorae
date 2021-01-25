@@ -5,11 +5,11 @@ This repository provides source codes for two applications:
 # Requirements:
 - python3.5
   see requirements.txt file
-- pep8 (--max-line-length=100) 
+- pycodestyle 2.6.0 (pep8) (--max-line-length=100) 
   (ex: pycodestyle file.py --max-line-length=100)
  
 # Execution
-- git clone https://github.com/hazemAmir/Horae.git
+- git clone https://github.com/hazemAmir/gitHorae.git
 - cd Horae
 - virtualenv -p python ENV
 - source ENV/bin/activate 
