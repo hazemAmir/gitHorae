@@ -38,7 +38,7 @@ This repository provides source codes for two applications:
               
    2) ### Prepare data files for segmentation (python3 run_seg_preprocessing.py)   
       
-      Input: 2 input directories: choose train and test files from "../data/alignment/raw/" and copy them into the following directories:  
+      Input: 2 input directories: choose train and test files from "../data/segmentation/raw/" and copy them into the following directories:  
               
               - Train directory: ../data/segmentation/train/raw/
               - Test directory:  ../data/segmentation/test/raw/
