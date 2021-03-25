@@ -3,7 +3,7 @@
 #
 #  Author: Amir HAZEM
 #  Created: 09/09/2020
-#  Updated: 22/01/2021
+#  Updated: 25/03/2021
 #  Role: Load JSON files library
 #
 # Libraries.
@@ -259,7 +259,7 @@ def align_sections(path_boh_annotator, path_transcriptions, path_raw,
                 total = len(tab_annot_by_volume)
                 print("Aligned sections/Total = " + str(count) + "/" + str(total))
                 flog.write("Aligned sections/Total = " + str(count) + "/" + str(total) + '\n')
-                if count > 0:
+                if count > 0 and count == total:
                     tab_class_by_page_id = {}
                     for element in tab_section:
                         polygon = polygon2str(str((np.asarray(element[1]))))
@@ -339,13 +339,15 @@ def filter_sections(sections):
 
 
 # sort sections and generates the corresponding files used for segmentation
-def sort_sections(path_tagged_raw, volume, path_out_align, path_out_seg):
+def sort_sections(path_tagged_raw, volume, path_out_align, path_out_seg, tab_sec1,
+                  tab_sec2, tab_sec3, tab_sec4, tab_sec12, tab_sec123):
     flag = 0
     nb_not_assigned = 0
     tmp_sec1 = ""
     tmp_sec2 = ""
     tmp_sec3 = ""
     tmp_sec4 = ""
+
     with codecs.open(path_out_align + '/' + volume, 'w', encoding='utf-8') as falign,\
          codecs.open(path_out_seg + '/' + volume, 'w', encoding='utf-8') as fseg:
         with open(path_tagged_raw + '/' + volume) as fraw:
@@ -386,9 +388,132 @@ def sort_sections(path_tagged_raw, volume, path_out_align, path_out_seg):
                         sections += tmp_sec4
 
                     linealign = ch[0] + '\t' + ch[1] + '\t' + ch[2] + '\t' + ch[3] + '\t' + sections
-                    lineseg = ch[0] + '\t' + filter_sections(sections)
+                    filtered_sec = filter_sections(sections)
+
+                    lineseg = ch[0] + '\t' + filtered_sec
                     falign.write(linealign + '\n')
                     fseg.write(lineseg + '\n')
+                    # save sections
+                    sec = filtered_sec.split('\t')
+
+                    if len(sec) == 4:
+                        if sec[0] in tab_sec1:
+                            tab_sec1[sec[0]] += 1
+                        else:
+                            tab_sec1[sec[0]] = 1
+
+                        if sec[1] in tab_sec2:
+                            tab_sec2[sec[1]] += 1
+                        else:
+                            tab_sec2[sec[1]] = 1
+
+                        if sec[2] in tab_sec3:
+                            tab_sec3[sec[2]] += 1
+                        else:
+                            tab_sec3[sec[2]] = 1
+
+                        if sec[3] in tab_sec4:
+                            tab_sec4[sec[3]] += 1
+                        else:
+                            tab_sec4[sec[3]] = 1
+                        tag_12 = sec[0] + "___" + sec[1]
+                        if tag_12 in tab_sec12:
+                            tab_sec12[tag_12] += 1
+                        else:
+                            tab_sec12[tag_12] = 1
+                        tag_123 = sec[0] + "___" + sec[1] + "___" + sec[2]
+                        if tag_123 in tab_sec123:
+                            tab_sec123[tag_123] += 1
+                        else:
+                            tab_sec123[tag_123] = 1
+                    else:
+                        if len(sec) == 3:
+                            if sec[0] in tab_sec1:
+                                tab_sec1[sec[0]] += 1
+                            else:
+                                tab_sec1[sec[0]] = 1
+
+                            if sec[1] in tab_sec2:
+                                tab_sec2[sec[1]] += 1
+                            else:
+                                tab_sec2[sec[1]] = 1
+
+                            if sec[2] in tab_sec3:
+                                tab_sec3[sec[2]] += 1
+                            else:
+                                tab_sec3[sec[2]] = 1
+                            tag_12 = sec[0] + "___" + sec[1]
+                            if tag_12 in tab_sec12:
+                                tab_sec12[tag_12] += 1
+                            else:
+                                tab_sec12[tag_12] = 1
+                            tag_123 = sec[0] + "___" + sec[1] + "___" + sec[2]
+                            if tag_123 in tab_sec123:
+                                tab_sec123[tag_123] += 1
+                            else:
+                                tab_sec123[tag_123] = 1
+
+                        else:
+                            if len(sec) == 2:
+                                if sec[0] in tab_sec1:
+                                    tab_sec1[sec[0]] += 1
+                                else:
+                                    tab_sec1[sec[0]] = 1
+
+                                if sec[1] in tab_sec2:
+                                    tab_sec2[sec[1]] += 1
+                                else:
+                                    tab_sec2[sec[1]] = 1
+                                tag_12 = sec[0] + "___" + sec[1]
+                                if tag_12 in tab_sec12:
+                                    tab_sec12[tag_12] += 1
+                                else:
+                                    tab_sec12[tag_12] = 1
+                            else:
+                                if len(sec) == 1:
+                                    if sec[0] in tab_sec1:
+                                        tab_sec1[sec[0]] += 1
+                                    else:
+                                        tab_sec1[sec[0]] = 1
+    return(tab_sec1, tab_sec2, tab_sec3, tab_sec4, tab_sec12, tab_sec123)
+
+
+# Save sections for BERT
+def save_sections(path_class_seg, tab_sec1, tab_sec2, tab_sec3, tab_sec12, tab_sec123):
+    class_file = "level1.txt"
+    index = 0
+    with codecs.open(path_class_seg + '/' + class_file, 'w', encoding='utf-8') as fout:
+        for x in tab_sec1:
+            fout.write(x + '\t' + str(index) + '\n')
+            index += 1
+
+    class_file = "level2.txt"
+    index = 0
+    with codecs.open(path_class_seg + '/' + class_file, 'w', encoding='utf-8') as fout:
+        for x in tab_sec2:
+            fout.write(x + '\t' + str(index) + '\n')
+            index += 1
+
+    class_file = "level3.txt"
+    index = 0
+    with codecs.open(path_class_seg + '/' + class_file, 'w', encoding='utf-8') as fout:
+        for x in tab_sec3:
+            fout.write(x + '\t' + str(index) + '\n')
+            index += 1
+
+    class_file = "level12.txt"
+    index = 0
+    with codecs.open(path_class_seg + '/' + class_file, 'w', encoding='utf-8') as fout:
+        for x in tab_sec12:
+            fout.write(x + '\t' + str(index) + '\n')
+            index += 1
+
+    class_file = "level123.txt"
+    index = 0
+    with codecs.open(path_class_seg + '/' + class_file, 'w', encoding='utf-8') as fout:
+        for x in tab_sec123:
+            fout.write(x + '\t' + str(index) + '\n')
+            index += 1
 
 
 # parse and sort a given volume
@@ -503,19 +628,19 @@ def sort_page(current_image, current_element_id, current_image_id, image_type, f
 
         for a in tab_page1:
             tab_sort_left.append((a, tab_page1[a]))
-            sorted_page_left = sorted(tab_sort_left, key=itemgetter(1), reverse=False)
-            # even if a double page exists it doesn't mean that text is present
-            if len(sorted_page_left) > 0:
-                write_page(sorted_page_left, current_image,
-                           current_element_id, current_image_id, fout)
+        sorted_page_left = sorted(tab_sort_left, key=itemgetter(1), reverse=False)
+        # even if a double page exists it doesn't mean that text is present
+        if len(sorted_page_left) > 0:
+            write_page(sorted_page_left, current_image,
+                       current_element_id, current_image_id, fout)
 
         for a in tab_page2:
             tab_sort_right.append((a, tab_page2[a]))
-            sorted_page_right = sorted(tab_sort_right, key=itemgetter(1), reverse=False)
+        sorted_page_right = sorted(tab_sort_right, key=itemgetter(1), reverse=False)
 
-            if len(sorted_page_right) > 0:
-                write_page(sorted_page_right, current_image,
-                           current_element_id, current_image_id, fout)
+        if len(sorted_page_right) > 0:
+            write_page(sorted_page_right, current_image,
+                       current_element_id, current_image_id, fout)
     else:
 
         for a in tab_page:

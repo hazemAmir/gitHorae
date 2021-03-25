@@ -4,15 +4,17 @@
 # Project: HORAE
 # Author: Amir HAZEM
 # Created: 24/09/2019
-# Updated: 02/12/2020
+# Updated: 25/03/2021
 #
 # Role: HORAE Library
 
 from os import listdir
+import os
+import sys
+import shutil
 from os.path import isfile, join, splitext
 import codecs
 import nltk
-import sys
 import pandas as pd
 import pickle
 # Import required libraries for machine learning classifiers
@@ -23,17 +25,57 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neural_network import MLPClassifier
-from xgboost import XGBClassifier
 from nltk.metrics.segmentation import pk, windowdiff
 import segeval as se
+import horae_text_alignement as ho
+import ast
+import argparse
+from simpletransformers.classification import ClassificationModel
+import gc
+from contextlib import contextmanager
+from operator import itemgetter, attrgetter
+from pathlib import Path
+import random
+import numpy as np
+import pandas as pd
+from tqdm import tqdm, tqdm_notebook
+import sklearn
+
+
 # Functions
-#
-#
-# Preprocessing functions
-#
+# Load segmentaton parameters
+def load_args():
+    parser = argparse.ArgumentParser(description='Get segmentation parameters...')
+    parser.add_argument('--level', '-l', help='segmentation \
+    level (level1/level12/level123/level2/level3)', action="store", dest="level", default="level1")
+    parser.add_argument('--data_type', '-dt', help=' hierarchical or flat segmentation \
+    (hier/flat)', action="store", dest="data_type", default="hier")
+    parser.add_argument('--classifier', '-cl', help='Classifier \
+    svm, bert ,bert2', action="store", dest="classifier", default="svm")
+    parser.add_argument('--train', '-t', help='Train \
+    classifier', action="store", dest="bool_train", default="True")
+    parser.add_argument('--send', '-s', help='Send annotation \
+    to Arkindex', action="store", dest="send", default="True")
+    parser.add_argument('--valid', '-v', help='Evaluate \
+    segmentation method (validation)', action="store", dest="valid", default="False")
+    parser.add_argument('--relaxation', '-r', help='Relaxation factor\
+    berween 50 and 100', action="store", dest="relaxation", default="50")
+    args = parser.parse_args()
+    return(args)
+
+
+def printargs(args):
+    print("Chosen Segmentation parameters: ")
+    print("Segmentation strategy ---> " + str(args.data_type))
+    print("Segmentation Classifier ---> " + str(args.classifier))
+    print("Segmentation Level ---> " + str(args.level))
+    print("Perform training  ---> " + str(eval(args.bool_train)))
+    print("Relaxation Factor  ---> " + str(args.relaxation))
+    print("Perform validation ---> " + str(eval(args.valid)))
+    print("Send Annotations ---> " + str(eval(args.send)))
+
+
 # Clean text
-
-
 def clean(text):
 
     line_ = (text.rstrip())
@@ -41,6 +83,15 @@ def clean(text):
     sent_tok = ' '.join(x for x in sent_tok1.split(' ') if x.isalpha())
 
     return sent_tok
+
+
+def rm_dir(path_dir):
+
+    if not os.path.isdir(path_dir):
+        os.mkdir(path_dir)
+    else:
+        shutil.rmtree(path_dir)
+        os.mkdir(path_dir)
 
 
 # extract_class
@@ -87,8 +138,70 @@ def extract_class(line):
     return text_clean, string_flat, string_hier
 
 
+# Counts the number of distinct hierarchical classes
+def count_hier(line_hier, tab_sec1, tab_sec12, tab_sec123):
+
+    ch = line_hier.split('\t')
+    if ch[1] in tab_sec1:
+        tab_sec1[ch[1]] += 1
+    else:
+        tab_sec1[ch[1]] = 1
+    if ch[2] in tab_sec12:
+        tab_sec12[ch[2]] += 1
+    else:
+        tab_sec12[ch[2]] = 1
+    if ch[3] in tab_sec123:
+        tab_sec123[ch[3]] += 1
+    else:
+        tab_sec123[ch[3]] = 1
+    return(tab_sec1, tab_sec12, tab_sec123)
+
+
+# Counts the number of distinct flat classes
+def count_flat(line_flat, tab_sec2, tab_sec3):
+
+    ch = line_flat.split('\t')
+
+    if ch[2] in tab_sec2:
+        tab_sec2[ch[2]] += 1
+    else:
+        tab_sec2[ch[2]] = 1
+
+    if ch[3] in tab_sec3:
+        tab_sec3[ch[3]] += 1
+    else:
+        tab_sec3[ch[3]] = 1
+    return(tab_sec2, tab_sec3)
+
+
+# generate BERT indexes
+def generate_BERT_indexes(tab_sec):
+    extra_class = "Class_not_found_in_train"
+    cpt = 0
+    for x in tab_sec:
+        tab_sec[x] = cpt
+        cpt += 1
+    tab_sec[extra_class] = cpt
+    return(tab_sec)
+
+
+def save_bert_indexes(tab_sec, path_out):
+
+    cpt = 0
+    with codecs.open(path_out, 'w', encoding='utf-8') as fout:
+        for x in tab_sec:
+            fout.write(str(x) + '\t' + str(tab_sec[x]) + "\n")
+            cpt += 1
+        # fout.write(extra_class + '\t' + str(cpt) + "\n")
+
+
 # Generate train data for ML classification
 def generate_train_ML_transcriptions(path_in, path_out_flat, path_out_hier):
+    tab_sec1 = {}
+    tab_sec12 = {}
+    tab_sec123 = {}
+    tab_sec2 = {}
+    tab_sec3 = {}
 
     head_flat = "line_number" + '\t' + "line" + '\t' + "class_level1" +\
                 '\t' + "class_level2" + '\t' + "class_level3"
@@ -124,6 +237,10 @@ def generate_train_ML_transcriptions(path_in, path_out_flat, path_out_hier):
                         clean_text, line_flat, line_hier = extract_class(line)
 
                         if len(clean_text.split(' ')) > 1:
+                            # count the number of distinct class for BERT indexes
+                            (tab_sec1, tab_sec12, tab_sec123) = count_hier(line_hier, tab_sec1,
+                                                                           tab_sec12, tab_sec123)
+                            (tab_sec2, tab_sec3) = count_flat(line_flat, tab_sec2, tab_sec3)
 
                             fout.write(str(cpt) + '\t' + line_flat + '\n')
                             ft.write(str(cpt_all) + '\t' + line_flat + '\n')
@@ -131,6 +248,22 @@ def generate_train_ML_transcriptions(path_in, path_out_flat, path_out_hier):
                             ft2.write(str(cpt_all) + '\t' + line_hier + '\n')
                             cpt += 1
                             cpt_all += 1
+
+    # generate BERT indexes
+    tab_sec1 = generate_BERT_indexes(tab_sec1)
+    tab_sec12 = generate_BERT_indexes(tab_sec12)
+    tab_sec123 = generate_BERT_indexes(tab_sec123)
+    tab_sec2 = generate_BERT_indexes(tab_sec2)
+    tab_sec3 = generate_BERT_indexes(tab_sec3)
+
+    save_bert_indexes(tab_sec1, path_out_hier + '/bert/class_index_level1.txt')
+    save_bert_indexes(tab_sec12, path_out_hier + '/bert/class_index_level12.txt')
+    save_bert_indexes(tab_sec123, path_out_hier + '/bert/class_index_level123.txt')
+
+    save_bert_indexes(tab_sec2, path_out_flat + '/bert/class_index_level2.txt')
+    save_bert_indexes(tab_sec3, path_out_flat + '/bert/class_index_level3.txt')
+
+    return(tab_sec1, tab_sec12, tab_sec123, tab_sec2, tab_sec3)
 
 
 # Generate test data for ML classification
@@ -162,12 +295,12 @@ def generate_test_ML_transcriptions(path_in, path_out_flat, path_out_hier):
                     fout2.write(head_hier + "\n")
                     cpt = 1
                     # skip head
-                    next(f)
+                    # next(f)
                     for line in f:
 
                         clean_text, line_flat, line_hier = extract_class(line)
 
-                        if len(clean_text.split(' ')) > 1:
+                        if len(clean_text.split(' ')) > 0:
 
                             fout.write(str(cpt) + '\t' + line_flat + '\n')
                             ft.write(str(cpt_all) + '\t' + line_flat + '\n')
@@ -211,11 +344,11 @@ def generate_choi_txt(path_in, path_out_flat_choi, path_out_hier_choi,
 
                 cpt = 1
                 # skip head
-                next(f)
+                # next(f)
                 for line in f:
                     clean_text, line_flat, line_hier = extract_class(line)
 
-                    if len(clean_text.split(' ')) > 1:
+                    if len(clean_text.split(' ')) > 0:
 
                         flat_levels = line_flat.split('\t')
                         level1 = flat_levels[1]
@@ -259,12 +392,12 @@ def generate_choi_txt(path_in, path_out_flat_choi, path_out_hier_choi,
                         # write txt line only
                         fout3.write(clean_text + '\n')
             # add a final line
-            # foutflat1.write('\n')
-            # fouthier1.write('\n')
-            # foutflat2.write('\n')
-            # foutflat3.write('\n')
-            # fouthier12.write('\n')
-            # fouthier123.write('\n')
+            foutflat1.write("==========")
+            fouthier1.write("==========")
+            foutflat2.write("==========")
+            foutflat3.write("==========")
+            fouthier12.write("==========")
+            fouthier123.write("==========")
 
 
 # Machine learning functions
@@ -446,7 +579,7 @@ def generate_predictions(path_test, path_pred, tab_pred):
 
 
 # evaluation functions ML
-def eval(y_pred, labels_test, id_to_category, id_to_category2):
+def evaluate(y_pred, labels_test, id_to_category, id_to_category2):
     i = 0
     acc = 0
     for x in labels_test:
@@ -667,6 +800,8 @@ def segmentation(path_pred, path_seg_pred, labels, relaxation):
                     first += 1
             line = document[i].split('\t')[0]
             fout.write(line + '\n')
+        fout.write("=========="+'\n')
+    return(tab, tab_seg_label)
 
 
 # eval_segmentation
@@ -687,8 +822,9 @@ def eval_segmentation(path_ref, path_pred):
 
 
 # Generate line classification
-def gen_line_classification(directory, path_train, bool_train, path_test, path_pred,
-                            path_save_model, classifier, level, relaxation, data_type):
+def svm_line_classification(directory, path_train, bool_train, path_test, path_pred,
+                            path_save_model, classifier, level, relaxation, data_type,
+                            validation, send_annotations, corpus_id):
     # MAIN
     if bool_train:
 
@@ -706,7 +842,7 @@ def gen_line_classification(directory, path_train, bool_train, path_test, path_p
         print(test_file)
         (y_pred, labels_test, id_to_category2) = test(path_test + test_file, tfidf, model, level)
 
-        eval(y_pred, labels_test, id_to_category, id_to_category2)
+        evaluate(y_pred, labels_test, id_to_category, id_to_category2)
 
         tab_pred = {}
         cpt = 0
@@ -720,7 +856,388 @@ def gen_line_classification(directory, path_train, bool_train, path_test, path_p
         test_noext = splitext(test_file)[0]
         path_seg_pred = directory + "/test/seg/" + test_noext + "_" + level + ".pred_" + classifier
         labels = load_ref_labels(path_train, level)
-        segmentation(path_out_pred, path_seg_pred, labels, relaxation)
-        ch = directory + "/test/choiformat/"
-        path_ref = ch + data_type + "/" + test_noext + "_" + level + ".ref"
-        eval_segmentation(path_ref, path_seg_pred)
+        segmentation_result = []
+        annotation_linkdir = "../data/alignment/full_tagged_raw/"
+        segmentation_result, tab_seg_label = segmentation(path_out_pred,
+                                                          path_seg_pred, labels, relaxation)
+
+        if send_annotations:
+            print("Send Annotations processing...")
+            send_segmentation(annotation_linkdir, test_file, segmentation_result,
+                              tab_seg_label, level, corpus_id, classifier)
+
+        if validation:
+            print("Validation processing...")
+            ch = directory + "/test/choiformat/"
+            path_ref = ch + data_type + "/" + test_noext + "_" + level + ".ref"
+            eval_segmentation(path_ref, path_seg_pred)
+
+
+def train_bert(path_train, bool_train, path_save_model, classifier, path_index):
+    tag_level = {}
+    labels = {}
+    # load indexes
+    numlabels = 0
+    with codecs.open(path_index, 'r', encoding='utf-8') as f:
+        for line in f:
+            ch = line.strip().split('\t')
+            tag_level[ch[1]] = ch[0]
+            numlabels += 1
+            labels[ch[0]] = ch[0]
+
+    model_name = "bert-base-multilingual-cased"
+    train_df = pd.read_csv(path_train, delimiter='\t')
+
+    if classifier == "bert2":
+        df = pd.DataFrame(train_df, columns=['text_a', 'text_b', 'labels'])
+        path_model = "./BERT2/"
+    else:
+        df = pd.DataFrame(train_df)
+        path_model = "./BERT/"
+    if bool_train:
+
+        train_args = {
+            'reprocess_input_data': True,
+            'overwrite_output_dir': True,
+            'output_dir': path_model + "outputs/" + model_name + "/",
+            'cache_dir':  path_model + "cache/" + model_name + "/",
+            "best_model_dir": path_model + "outputs/best_model/",
+            'max_seq_length': 60,
+            'train_batch_size': 8,
+            'eval_batch_size': 8,
+            'gradient_accumulation_steps': 1,
+            'num_train_epochs': 50,
+            }
+
+        gc.collect()
+
+        print("Train Bert...")
+        # Create a ClassificationModel
+        model = ClassificationModel('bert', 'bert-base-multilingual-cased',
+                                    num_labels=numlabels+1, args=train_args, use_cuda=True)
+        model.train_model(df)
+    else:
+        print("Load Bert...")
+        model = ClassificationModel('bert', path_model + "outputs/" + model_name + "/",
+                                    num_labels=numlabels+1, use_cuda=True)
+    return(model, tag_level, labels)
+
+
+def test_bert(model, tag_level, path_test, path_pred):
+    test_df = pd.read_csv(path_test, delimiter='\t')
+    df2 = pd.DataFrame(test_df, columns=['text_a'])
+    df3 = pd.DataFrame(test_df, columns=['labels'])
+    df2_list = df2.values.tolist()
+    from django.contrib.admin.utils import flatten
+    testlistflat = (flatten((list(df2_list))))
+    predictions, raw_outputs = model.predict(testlistflat)
+    accuracy = 0
+    acc = 0
+    count = 1
+    i = 0
+    with codecs.open(path_pred, 'w', encoding='utf-8') as fout:
+        for x in predictions:
+            sent = str(df2['text_a'][i])
+            label = df3['labels'][i]
+            if str(label) == str(x):
+                acc += 1
+            output = sent + '\t' + str(tag_level[str(x)]) + '\t' + str(tag_level[str(label)])
+            fout.write(output + '\n')
+            count += 1
+            i += 1
+    accuracy = (acc / count) * 100
+    print("Accuracy \t" + str(accuracy))
+
+
+def test_bert2(model, tag_level, path_test, path_pred):
+
+    test_df = pd.read_csv(path_test, delimiter='\t')
+    df2 = pd.DataFrame(test_df, columns=['text_a', 'text_b'])
+    df3 = pd.DataFrame(test_df, columns=['labels'])
+    df2_list = df2.values.tolist()
+    testlistflat = list(df2_list)
+    predictions, raw_outputs = model.predict(testlistflat)
+    accuracy = 0
+    acc = 0
+    count = 1
+    i = 0
+    with codecs.open(path_pred, 'w', encoding='utf-8') as fout:
+        for x in predictions:
+
+            sent1 = str(df2['text_a'][i])
+            sent2 = str(df2['text_b'][i])
+            label = df3['labels'][i]
+
+            if str(label) == str(x):
+                acc += 1
+            output = sent1 + '\t' + str(tag_level[str(x)]) + '\t' + str(tag_level[str(label)])
+            fout.write(output + '\n')
+            count += 1
+            i += 1
+
+    accuracy = (acc / count) * 100
+    print("Accuracy \t" + str(accuracy))
+
+
+def bert_line_classification(directory, path_train, bool_train, path_test, path_pred,
+                             path_save_model, classifier, level, relaxation, data_type,
+                             validation, send_annotations, path_index, corpus_id):
+    # MAIN
+    (model, tag_level, labels) = train_bert(path_train, bool_train,
+                                            path_save_model, classifier, path_index)
+
+    onlyfiles = [f for f in listdir(path_test) if isfile(
+                    join(path_test, f))]
+
+    for test_file in onlyfiles:
+        print("=====================================")
+        print(test_file)
+
+        pred_file = "/" + test_file + "_" + level + ".pred_" + classifier
+        path_out_pred = directory + "/test/pred/" + test_file + "_" + level + ".pred_" + classifier
+
+        if classifier == "bert2":
+            file_test = path_test + "/bert/" + test_file + "_test_bert_pair_" + level + ".csv"
+            test_bert2(model, tag_level, file_test, path_out_pred)
+        else:
+            file_test = path_test + "/bert/" + test_file + "_test_bert_single_" + level + ".csv"
+            test_bert(model, tag_level, file_test, path_out_pred)
+
+        test_noext = splitext(test_file)[0]
+        path_seg_pred = directory + "/test/seg/" + test_noext + "_" + level + ".pred_" + classifier
+
+        # labels = load_ref_labels(path_train, level)
+        segmentation_result = []
+        annotation_linkdir = "../data/alignment/full_tagged_raw/"
+        segmentation_result, tab_seg_label = segmentation(path_out_pred,
+                                                          path_seg_pred, labels, relaxation)
+
+        if send_annotations:
+            print("Send Annotations processing...")
+            send_segmentation(annotation_linkdir, test_file, segmentation_result,
+                              tab_seg_label, level, corpus_id, classifier)
+        if validation:
+            print("Validation processing...")
+            ch = directory + "/test/choiformat/"
+            path_ref = ch + data_type + "/" + test_noext + "_" + level + ".ref"
+            print(path_ref)
+            print(path_seg_pred)
+            eval_segmentation(path_ref, path_seg_pred)
+
+
+def format_class_label(label, level):
+
+    format_label1 = "no"
+    format_label2 = "no"
+    format_label3 = "no"
+
+    if level == "level1":
+        format_label1 = label.rstrip() + " | L1 | Section"
+    if level == "level2":
+        format_label2 = label.rstrip() + " | L2 | Section"
+    if level == "level3":
+        format_label3 = label.rstrip() + " | L3 | Section"
+
+    if level == "level12":
+        ch = label.rstrip().split('_')
+        format_label1 = ch[0] + " | L1 | Section"
+        if ch[1] != "no":
+            format_label2 = ch[1] + " | L2 | Section"
+        else:
+            format_label2 = "no"
+
+    if level == "level123":
+        ch = label.rstrip().split('_')
+        format_label1 = ch[0] + " | L1 | Section"
+
+        if ch[1] != "no":
+            format_label2 = ch[1] + " | L2 | Section"
+            if ch[2] != "no":
+                format_label3 = ch[2] + " | L3 | Section"
+            else:
+                format_label3 = "no"
+        else:
+            format_label2 = "no"
+            format_label3 = "no"
+
+    return(format_label1, format_label2, format_label3)
+
+
+def send_segmentation(annotation_linkdir, test_file, segmentation_result,
+                      tab_seg_label, level, corpus_id, classifier):
+
+    # load alignment test file
+    filename = splitext(test_file)[0]
+    path_ = annotation_linkdir + filename
+    document = {}
+    path_out = "../data/segmentation/test/comp/" + filename + ".seg." + classifier
+    tab = {}
+    with codecs.open(path_out, 'w', encoding='utf-8') as fout:
+        # load test document
+        with codecs.open(path_, 'r', encoding='utf-8') as f:
+            ind = 1
+
+            for line in f:
+                document[ind] = line
+                ind += 1
+
+        tab_send = {}
+        i = 0
+        for x in segmentation_result:
+            output = str(x) + '\t' + tab_seg_label[x]
+            info = document[x].split('\t')
+            line_num = info[0]
+            page_image = info[1]
+            target = info[2]
+            transcription_polygon = ast.literal_eval(((info[3].rstrip())))
+
+            algorithm = "Greedy_"
+
+            (class_label1, class_label2, class_label3) = format_class_label(tab_seg_label[x], level)
+            if i == 0:
+                tmp_class1 = class_label1
+                tmp_class2 = class_label2
+                tmp_class3 = class_label3
+
+            confidence_score = 100
+            output = ','
+            if i == 0 or class_label1 != tmp_class1:
+                if class_label1 != "no":
+                    # print("send level1")
+                    output += class_label1
+
+                    ho.send_class(target, class_label1, "section", confidence_score,
+                                  page_image, corpus_id, transcription_polygon)
+                    tmp_class1 = class_label1
+
+            if i == 0 or class_label2 != tmp_class2:
+                if class_label2 != "no":
+                    # print("send level2")
+                    output += "," + class_label2
+                    ho.send_class(target, class_label2, "section", confidence_score,
+                                  page_image, corpus_id, transcription_polygon)
+                    tmp_class2 = class_label2
+
+            if i == 0 or class_label3 != tmp_class3:
+                if class_label3 != "no":
+                    # print("send level3")
+                    output += "," + class_label3
+                    ho.send_class(target, class_label3, "section", confidence_score,
+                                  page_image, corpus_id, transcription_polygon)
+                    tmp_class3 = class_label3
+
+            i += 1
+            tab[x] = output
+
+        for j in range(1, len(document)):
+            # print(j)
+            info = document[j].split('\t')
+            page_image = "https://arkindex.teklia.com/element/" + info[2]
+            string_out = str(j) + '\t' + str(page_image) + '\t'
+            if j in tab:
+                # print(str(j) + '\t' + str(document[j]) + '\t' + str(tab[j]))
+                string_out = string_out + tab[j]
+            # else:
+            #    print(str(j) + '\t' + (document[j]))
+            fout.write(string_out + '\n')
+
+
+def generate_train_test_BERT(path_out_train_csv_hier, path_out_test_csv_hier,
+                             path_out_train_csv_flat, path_out_test_csv_flat,
+                             tab_sec1, tab_sec12, tab_sec123, tab_sec2, tab_sec3):
+
+    level = "level1"
+    generate_BERT_data(path_out_train_csv_hier, path_out_test_csv_hier, level, tab_sec1)
+    level = "level12"
+    generate_BERT_data(path_out_train_csv_hier, path_out_test_csv_hier, level, tab_sec12)
+    level = "level123"
+    generate_BERT_data(path_out_train_csv_hier, path_out_test_csv_hier, level, tab_sec123)
+    level = "level2"
+    generate_BERT_data(path_out_train_csv_flat, path_out_test_csv_flat, level, tab_sec2)
+    level = "level3"
+    generate_BERT_data(path_out_train_csv_flat, path_out_test_csv_flat, level, tab_sec3)
+
+
+# Generates train and test data for BERT
+def generate_BERT_data(path_in_train_csv, path_in_test_csv, level, tab_sec):
+
+    df = pd.read_csv(path_in_train_csv + '/All.csv', delimiter='\t', encoding="utf-8")
+
+    # train
+    df = df[pd.notnull(df['class_' + level])]
+    col = ['class_' + level, 'line']
+    df = df[col]
+    df['category_id'] = df['class_' + level].factorize()[0]
+    cat_id_df = df[['class_' + level, 'category_id']].drop_duplicates().sort_values('category_id')
+    category_to_id = dict(cat_id_df.values)
+    id_to_category = dict(cat_id_df[['category_id', 'class_' + level]].values)
+    labels = df.category_id
+
+    path_out_train = path_in_train_csv + "/bert/train_bert_single_" + level + ".csv"
+    path_out2_train = path_in_train_csv + "/bert/train_bert_pair_" + level + ".csv"
+    gen_train_test(path_out_train, path_out2_train, df, level, tab_sec)
+
+    onlyfiles = [f for f in listdir(path_in_test_csv) if isfile(join(path_in_test_csv, f))]
+    for filename in onlyfiles:
+
+        print(filename)
+
+        df2 = pd.read_csv(path_in_test_csv + '' + filename, delimiter='\t', encoding="utf-8")
+
+        p_out_test = path_in_test_csv + '/bert/' + filename + "_test_bert_single_" + level + ".csv"
+        p_out2_test = path_in_test_csv + '/bert/' + filename + "_test_bert_pair_" + level + ".csv"
+
+        gen_train_test(p_out_test, p_out2_test, df2, level, tab_sec)
+
+
+def gen_train_test(path_out_train_single, path_out_train_pair, df, level, class_index):
+
+    with codecs.open(path_out_train_single,
+                     'w', encoding='utf-8') as fout, codecs.open(path_out_train_pair,
+                                                                 'w', encoding='utf-8') as fout2:
+        cpt = 0
+        head1 = 'text_a' + '\t' + 'labels'
+        head2 = 'text_a' + '\t' + 'text_b' + '\t' + 'labels'
+        fout.write(head1 + '\n')
+        fout2.write(head2 + '\n')
+        tab_not_in_training = {}
+        for x in range(0, len(df['line'])):
+
+            label = df['class_' + level][x].strip()
+
+            sent_tmp = clean(df['line'][x])
+
+            if len(sent_tmp.split(' ')) > 0:
+                if label in class_index:
+
+                    ch = sent_tmp + '\t' + str(class_index[label])
+                else:
+                    ch = sent_tmp + '\t' + str(class_index["Class_not_found_in_train"])
+                    # print("label " + label + " not in the training data")
+                    tab_not_in_training[label] = label
+                fout.write(ch + '\n')
+
+            if cpt > 0:
+
+                sent_tmp = clean(df['line'][preddecessor])
+                sent_tmp2 = clean(df['line'][x])
+
+                if len(sent_tmp.split(' ')) > 0:
+                    if sent_tmp2 == "":
+                        sent_tmp2 = "empty_token"
+                    if label in class_index:
+                        ch2 = sent_tmp + '\t' + sent_tmp2 + '\t' + str(class_index[label])
+                    else:
+                        missed = "Class_not_found_in_train"
+                        ch2 = sent_tmp + '\t' + sent_tmp2 + '\t' + str(class_index[missed])
+                    fout2.write(ch2 + '\n')
+
+            cpt += 1
+            preddecessor = x
+        ch2 = sent_tmp2 + '\t' + sent_tmp2 + '\t' + str(class_index[label])
+        fout2.write(ch2 + '\n')
+        if len(tab_not_in_training) > 0:
+            print("Test Classes not found in training:")
+            for x in tab_not_in_training:
+                print(x)
+            print("number of missing casses is " + str(len(tab_not_in_training)))
