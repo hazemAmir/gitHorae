@@ -3,7 +3,7 @@ This repository provides source codes for two applications:
   - i)  Text detection and alignment such as psalms, orations, etc.
   - ii) Books of Hours segmentation.
 # Requirements:
-- python3.5
+- python3.7
   see requirements.txt file
 - pycodestyle 2.6.0 (pep8) (--max-line-length=100) 
   (ex: pycodestyle file.py --max-line-length=100)
