@@ -18,7 +18,7 @@ This repository provides source codes for two applications:
 # Quick start
 - python3 run_load_json.py
 - python3 run_seg_preprocessing.py
-- python3 run_segmentation.py 
+- python3 run_segmentation.py -v True -r 100 -s False -t True -c svm -dt hier -l level1 
 
 ## Preprocessing
    1) ### Load and parse JSON volumes (python3 run_load_json.py)
@@ -55,6 +55,15 @@ This repository provides source codes for two applications:
                            "../data/segmentation/test/choiformat/flat/"
                            "../data/segmentation/test/txt/"
 ## Segmentation
- 1) python3 run_segmentation.py
-    performs training with svm and produces segmentaton results for all the volums contained in the ../data/segmentation/test/raw/ directory
-
+ 1) python3 run_segmentation.py -v True -r 100 -s False -t True -c svm -dt hier -l level1
+    performs training with svm, bert or bert2 and produces segmentaton results for all the volums contained in the ../data/segmentation/test/raw/ directory
+   
+   ## Parameters:
+   
+    - Segmentation Level -->  --level or -l (level1/level12/level123)
+    - Segmentation type --> --data_type or -dt 'hierarchical or flat segmentation (hier/flat)
+    - Classifier --> --classifier or -cl (svm, bert ,bert2)
+    - Train --> --train or -t  (True/False)
+    - Send --> --send or -s  'Send annotation to Arkindex' (True/False)
+    - Validation--> --valid or -v (True/False)
+    - Relaxaion factor -->  --relaxation or -r 'Relaxation factor berween 50 and 100'
