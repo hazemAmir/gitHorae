@@ -7,7 +7,7 @@ This repository provides source codes for two applications:
   see requirements.txt file
 - pycodestyle 2.6.0 (pep8) (--max-line-length=100) 
   (ex: pycodestyle file.py --max-line-length=100)
-- After installing segeval, open the file windowdiff.py (.local/lib/python3.7/site-packages/segeval/window/) and replace the following instruction
+- After installing **segeval**, open the file **windowdiff.py** (.local/lib/python3.7/site-packages/segeval/window/) and replace the following instruction:\\
   assert len(window) is window_size + 1 by assert len(window) == window_size + 1   
   
 # Execution
