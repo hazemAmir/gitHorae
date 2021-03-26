@@ -1,18 +1,13 @@
-apex                    0.1
-apistar                 0.7.2
-appdirs                 1.4.3
-arkindex-client         1.0.6
-Django                  3.0.3
-flake8                  3.5.0
-nltk                    3.5
-numpy                   1.19.4
-pandas                  1.0.5
-pycodestyle             2.3.1
-scikit-learn            0.23.1
-scipy                   1.5.1
-segeval                 2.0.11
-Shapely                 1.7.1
-simpletransformers      0.43.3
-tqdm                    4.48.0
-urllib3                 1.25.9
-virtualenv              15.1.0
+pandas==1.1.0
+segeval==2.0.11
+Shapely==1.7.0
+numpy==1.18.5
+nltk==3.5
+opencv_python==4.5.1.48
+scipy==1.5.2
+arkindex_client==1.0.0
+apistar==0.7.2
+tqdm==4.48.2
+Django==3.1.7
+scikit_learn==0.24.1
+simpletransformers==0.61.3
