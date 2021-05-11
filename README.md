@@ -26,7 +26,7 @@ This repository provides source codes for two applications:
 - python3 run_seg_preprocessing.py
 - python3 run_segmentation.py -v True -r 100 -s False -t True -c svm -dt hier -l level1 
 
-## Preprocessing
+# Preprocessing
    1) ### Load and parse JSON volumes (python3 run_load_json.py)
        
        Input: 2 input directories (TEKLIA JSON format) 
@@ -60,27 +60,33 @@ This repository provides source codes for two applications:
                            "../data/segmentation/test/choiformat/hier/"
                            "../data/segmentation/test/choiformat/flat/"
                            "../data/segmentation/test/txt/"
-## Alignement
+# Alignement
 - Choisir le mode validation sur les 8 volumes don't on a une annotation des 8 psaumes de la pénitence.
+
    Les 8 volumes se trouvent dans le repertoire /data/alignement/raw_test/
-   Il faut donc executer la commande suivante: 
+   
+   Il faut donc executer la commande suivante:
+   
        - python3 run_text_alignment.py -t 40 -v True -s False
+     
    le paramètre "send -s" peut être mis à "True" pour la visualisation des annotations sur Arkindex
 
-- Application de la recherche des textes liturgique sur tous les volumes présent dans /data/alignement/raw/
+- Application de la recherche des textes liturgiques sur tous les volumes présent dans /data/alignement/raw/
   Dans ce cas,le mode validation doit être mis à False
-  - python3 run_text_alignment.py -t 40 -v False -s False
+  
+        - python3 run_text_alignment.py -t 40 -v False -s False
+  
   Ainsi, tous les textes liturgiques listés dans le fichier ../data/alignment/reference/textes_liturgiques_utf8.txt seront alignés
- ### Parameters:
+ ## Parameters:
    
     - Send --> --send or -s  'Send annotation to Arkindex' (True/False)
     - Validation--> --valid or -v (True/False only if test annotations are available) 
     - THreshold -->  --th or -t 'Threshold to select a segment as a candidate  [40 - 95] %'
-## Segmentation
+# Segmentation
  1) python3 run_segmentation.py -v True -r 100 -s False -t True -c svm -dt hier -l level1
     performs training with svm, bert or bert2 and produces segmentaton results for all the volums contained in the ../data/segmentation/test/raw/ directory
    
-   ### Parameters:
+   ## Parameters:
    
     - Segmentation Level -->  --level or -l (level1/level12/level123)
     - Segmentation type --> --data_type or -dt 'hierarchical or flat segmentation (hier/flat)
