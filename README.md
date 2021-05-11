@@ -72,7 +72,7 @@ This repository provides source codes for two applications:
    le paramètre "send -s" peut être mis à "True" pour la visualisation des annotations sur Arkindex
 
 - Application de la recherche des textes liturgiques sur tous les volumes présent dans /data/alignement/raw/
-  Dans ce cas,le mode validation doit être mis à False
+  Dans ce cas,le mode validation doit être mis à "False"
   
         - python3 run_text_alignment.py -t 40 -v False -s False
   
